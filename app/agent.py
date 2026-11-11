@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from .config import ROOT, settings
 from .costs import Usage, cost_usd
-from .db import Conversation, Message, Run, User, utcnow
+from .db import Conversation, Message, Run, User, conversation_log, utcnow
 from .tools import registry
 from .tools.sales import branches, data_range
 
@@ -238,6 +238,7 @@ def run_turn(db: Session, *, user: User, conversation: Conversation | None, text
 
     run = Run(conversation_id=conversation.id, user_id=user.id,
               model=settings.model if client.name == "anthropic" else client.name, status="ok")
+    reply_sent_at: datetime | None = None  # set once a reply is saved; the log row copies it
     total = Usage()
     pieces: list[str] = []
     tool_calls = 0
@@ -252,6 +253,10 @@ def run_turn(db: Session, *, user: User, conversation: Conversation | None, text
         run.tool_calls, run.tool_names = tool_calls, ",".join(tool_names)[:200]
         run.duration_ms = int((time.monotonic() - started) * 1000)
         db.add(run)
+        # The readable log (table `conversations`): the question, who asked, when it came in and when the reply was sent.
+        db.execute(conversation_log.insert().values(
+            conversation_id=conversation.id, user_id=user.id, user_name=user.name, message=user_msg.content,
+            time_user_entered=user_msg.created_at, time_message_sent=reply_sent_at))
         db.commit()
 
     try:
@@ -306,6 +311,7 @@ def run_turn(db: Session, *, user: User, conversation: Conversation | None, text
         reply = "".join(pieces).strip()
         if reply:
             db.add(Message(conversation_id=conversation.id, user_id=user.id, role="assistant", content=reply))
+            reply_sent_at = utcnow()
         conversation.updated_at = utcnow()
         finish_run(run.status)
         yield {"type": "done", "usage": total.as_dict(), "cost_usd": run.cost_usd, "run_id": run.id, "status": run.status}

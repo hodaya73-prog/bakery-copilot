@@ -12,15 +12,18 @@ from pathlib import Path
 
 from sqlalchemy import (
     Boolean,
+    Column,
     Date,
     DateTime,
     Float,
     ForeignKey,
     Integer,
     String,
+    Table,
     Text,
     create_engine,
     func,
+    inspect,
     select,
     text,
 )
@@ -53,7 +56,9 @@ class User(Base):
 
 
 class Conversation(Base):
-    __tablename__ = "conversations"
+    """One chat: owner and title, the sidebar list. Table `chats`; `conversations` is the log below."""
+
+    __tablename__ = "chats"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     title: Mapped[str] = mapped_column(String(120), default="New chat")
@@ -65,7 +70,7 @@ class Conversation(Base):
 class Message(Base):
     __tablename__ = "messages"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"), index=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey("chats.id"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     role: Mapped[str] = mapped_column(String(10))  # "user" | "assistant"
     content: Mapped[str] = mapped_column(Text)  # plain text shown in the UI
@@ -79,7 +84,7 @@ class Run(Base):
 
     __tablename__ = "runs"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    conversation_id: Mapped[int | None] = mapped_column(ForeignKey("conversations.id"), nullable=True, index=True)
+    conversation_id: Mapped[int | None] = mapped_column(ForeignKey("chats.id"), nullable=True, index=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     model: Mapped[str] = mapped_column(String(60))
     status: Mapped[str] = mapped_column(String(20), default="ok")  # ok | refusal | error | aborted | capped
@@ -93,6 +98,22 @@ class Run(Base):
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+
+# The conversation log, for people who read the database (Railway's Data tab): one row per question,
+# with the sign-in name beside the ids. Plain columns, no primary key: nothing in the app reads it
+# back and a row is written once, when the turn ends. Times are UTC. `time_message_sent` is when the
+# reply finished and stays empty when no reply was saved (error, or the browser went away).
+conversation_log = Table(
+    "conversations",
+    Base.metadata,
+    Column("conversation_id", Integer, ForeignKey("chats.id"), nullable=False, index=True),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False, index=True),
+    Column("user_name", String(40), nullable=False),
+    Column("message", Text, nullable=False),
+    Column("time_user_entered", DateTime, nullable=False, index=True),
+    Column("time_message_sent", DateTime, nullable=True),
+)
 
 
 class Supplier(Base):
@@ -169,31 +190,36 @@ def get_db():
 # Startup: schema, version, seed data
 # ---------------------------------------------------------------------------
 
-# Read-only views for people who look at the database (Railway's Data tab, psql). Nothing in the
-# app reads them. `create_all` never alters or creates views, so each start drops and recreates
-# them; a view holds no rows, so that loses nothing and a changed definition is picked up at once.
-VIEWS = {
-    # The sign-in name next to the user_id it belongs to (the name lives in `users`).
-    "conversations_with_user": """
-        SELECT c.id, c.user_id, u.name AS user_name, c.title, c.created_at, c.updated_at
-        FROM conversations c JOIN users u ON u.id = c.user_id
-    """,
-}
-
-
-def _create_views(bind) -> None:
+def _retire_old_conversations_layout(bind) -> None:
+    """One-time switch (2026-11-11): the old `conversations` table (id, user_id, title) became `chats`
+    and the name now belongs to the log above. `create_all` never alters a table, so while the old
+    layout is still there, and only if it holds no chats, drop it with the two tables that point at it
+    (`messages`, `runs`) and the short-lived view; `create_all` then builds all of them fresh. If
+    anything has been saved, stop with a clear message instead of deleting it."""
+    insp = inspect(bind)
+    tables = set(insp.get_table_names())
+    if "conversations" not in tables or "title" not in {c["name"] for c in insp.get_columns("conversations")}:
+        return  # new database, or already switched
+    doomed = [t for t in ("messages", "runs", "conversations") if t in tables]  # children first
     with bind.begin() as conn:
-        for name, select_sql in VIEWS.items():
-            conn.execute(text(f"DROP VIEW IF EXISTS {name}"))
-            conn.execute(text(f"CREATE VIEW {name} AS {select_sql}"))
+        held = {t: conn.scalar(text(f"SELECT COUNT(*) FROM {t}")) for t in doomed}
+        if any(held.values()):
+            raise RuntimeError(
+                "The old `conversations` table (id, user_id, title) still holds chats, so it was not replaced "
+                f"by the new layout. Rows now: {held}. Export what you need, then drop `messages`, `runs` and "
+                "`conversations` and start again (runbook.md)."
+            )
+        conn.execute(text("DROP VIEW IF EXISTS conversations_with_user"))
+        for t in doomed:
+            conn.execute(text(f"DROP TABLE {t}"))
 
 
 def init_db(bind=None, data_dir: Path | None = None) -> dict:
-    """Create tables and views, record the schema version, seed reference data if empty."""
+    """Create tables, record the schema version, seed reference data if empty."""
     bind = bind or engine
     data_dir = data_dir or (ROOT / "data")
+    _retire_old_conversations_layout(bind)
     Base.metadata.create_all(bind)
-    _create_views(bind)
     report = {"schema_version": SCHEMA_VERSION, "suppliers_seeded": 0, "sales_seeded": 0}
     with Session(bind) as db:
         if db.scalar(select(func.count()).select_from(SchemaVersion)) == 0:

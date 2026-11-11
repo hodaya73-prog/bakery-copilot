@@ -29,7 +29,7 @@ Multi-tenant. Public sign-up. Payments or bank actions. Editing or deleting invo
 
 ## 5. Data
 
-- **Kept**: users (name only), conversations, messages (text; images are not stored), invoices, one run record per model turn (tokens, cost, tools, status), the sales dataset (read-only, 29,115 lines).
+- **Kept**: users (name only), chats and messages (text; images are not stored), a readable `conversations` log (one row per question: name, message, time entered, time reply sent), invoices, one run record per model turn (tokens, cost, tools, status), the sales dataset (read-only, 29,115 lines).
 - **Retention**: conversations 90 days (manual purge in v1). Runs kept for the digest and the bill.
 - **Sensitive**: supplier names and amounts are business data; the team password and the API key are secrets and live only in Variables.
 

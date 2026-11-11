@@ -12,7 +12,7 @@ The drawing, where each box runs, the limits, and every decision with its reason
                              |         tools: sales_query · lookup_supplier · log_invoice
                              v
                           Postgres (Railway plugin)  <---  cron service: python -m app.digest (07:30)
-                          users · conversations · messages · runs · invoices · suppliers · sales
+                          users · chats · conversations (log) · messages · runs · invoices · suppliers · sales
 ```
 
 Four layers, one external dependency. Everything on the left and in the middle is ours and runs on Railway; the model is rented per token.
@@ -30,14 +30,14 @@ Postgres on Railway (`DATABASE_URL` from the plugin); SQLite locally and in test
 | Table | Key | Notes |
 |---|---|---|
 | users | name (unique) | typed at login; no passwords per user |
-| conversations | id | belongs to one user; title = first message |
+| chats | id | the app's chat list: belongs to one user; title = first message (this was `conversations` until 2026-11-11) |
+| conversations | none (log) | one row per question, written when the turn ends: `conversation_id`, `user_id`, `user_name`, `message`, `time_user_entered`, `time_message_sent` (UTC; empty when no reply was saved). For people reading the database in Railway; nothing in the app reads it |
 | messages | id | role, text only; `has_image` flag; image bytes are never stored |
 | runs | id | one per model turn: tokens, cost_usd, tool_calls, status, duration |
 | invoices | `source_ref` (unique) · (supplier, invoice_number) | the dedup keys; status logged / needs_a_look; flagged |
 | suppliers | id | seeded from data/suppliers.csv |
 | sales | id | seeded from data/bakery_sales.csv; read-only through `sales_query` |
 | schema_version | version | 1; created with `create_all` at start |
-| conversations_with_user | (view) | `conversations` plus `user_name`, right after `user_id`; for people reading the database (Railway's Data tab, psql); nothing in the app reads it; dropped and recreated at every start by `init_db` |
 
 ## Model
 
@@ -81,5 +81,5 @@ One Railway project, three things in it: the **web service**, built by Railway's
 | 2026-10-27 | Railpack build, no Dockerfile | The Dockerfile only pinned Python and ran pip; Railway's default builder does the same from `requirements.txt` and `.python-version`, one file less to keep current | A system package (apt) or a multi-stage build is needed, or Railway drops Railpack |
 | 2026-10-27 | Infrastructure as Code (`.railway/railway.ts`) instead of `railway.json` | Railway deprecated config-as-code files (they stop working on 2026-12-01); one IaC file describes both services, so the cron service needs no config path of its own | Railway changes the IaC format again, or a setting the DSL cannot express |
 | 2026-11-04 | Chat history is resent as text only; the system prompt says earlier replies were tool-checked and must not be re-checked or retracted unasked | The first live chats showed the model, seeing its old figures without the tool calls behind them, re-running tools on unrelated turns and telling users their searches "never ran" (issue #2). A prompt rule fixes it with no schema change | The eval `no_recheck_after_off_topic` regresses → store a compact tool trace per message and replay it (a schema change, so add Alembic first) |
-| 2026-11-11 | A view `conversations_with_user`, not a `user_name` column on `conversations` | The name already lives in `users`; a view shows it next to `user_id` with no copied data and no table change, so the `create_all` decision above still holds and Alembic is not needed yet | A column is wanted for an app query or an index, or a tool that cannot show views → add the column with Alembic |
+| 2026-11-11 | `conversations` is a readable log (one row per question, with `user_name` and two times); the app's chat list moved to `chats` | The owner reads the database in Railway and wants the sign-in name and the times beside the ids. The log is written once per turn and never read by the app, so it is a plain table with no primary key. A one-time step in `init_db` drops the old empty `conversations`, `messages` and `runs` and lets `create_all` rebuild them; it refuses, with a message, if any of them holds rows. This replaced an earlier view `conversations_with_user` (same day) | Chats must be kept across this switch, or another table needs a change → add Alembic |
 | 2026-10-28 | Public repository, history restarted as one commit | No secrets live in the code (they are in Variables) and the dataset is mock data; a fresh history keeps the owner's personal email out, and the old private repo is kept as `bakery-copilot-archive` | Real client data or client-specific configuration has to be committed |

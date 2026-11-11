@@ -104,8 +104,9 @@ button:disabled { opacity: .5; cursor: default; filter: none; box-shadow: none; 
 
 /* ---------- messages (Discord rows) ---------- */
 .messages { flex: 1; overflow-y: auto; padding: 18px 0 10px; display: flex; flex-direction: column; }
-.msg { display: grid; grid-template-columns: 40px 1fr; gap: 14px; padding: 8px 20px; }
-.msg:hover { background: rgba(140,106,63,.07); }
+/* each message sits on a soft white card so the background lines never run through the text */
+.msg { display: grid; grid-template-columns: 40px 1fr; gap: 14px; padding: 10px 16px; margin: 3px 16px; border-radius: 14px; background: rgba(255,255,255,.86); }
+.msg:hover { background: rgba(255,255,255,.97); }
 .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: #fff; font-size: 16px; margin-top: 2px; flex: none; }
 .avatar.user { background: var(--grad-cool); box-shadow: 0 0 0 2px var(--bg-2), 0 0 14px rgba(140,106,63,.35); }
 .avatar.assistant { background: var(--grad-hot); box-shadow: 0 0 0 2px var(--bg-2), 0 0 14px rgba(168,100,43,.4); }
@@ -115,15 +116,15 @@ button:disabled { opacity: .5; cursor: default; filter: none; box-shadow: none; 
 .msg.user .author { color: var(--accent-2); }
 .msg.assistant .author { color: var(--accent); }
 .tag { font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 4px; background: var(--tag); color: #fff; letter-spacing: .3px; }
-.time { font-size: 11px; color: var(--dim); }
-.body { color: var(--ink); word-wrap: break-word; }
+.time { font-size: 11px; font-weight: 600; color: var(--muted); }
+.body { color: #2A1F17; font-size: 16px; font-weight: 600; line-height: 1.5; word-wrap: break-word; text-shadow: 0 0 6px rgba(255,255,255,.9); }
 .body p { margin: 0 0 6px; } .body p:last-child { margin-bottom: 0; }
 .body ul, .body ol { margin: 4px 0 6px 20px; padding: 0; }
 .body table { border-collapse: collapse; font-size: 13px; margin: 6px 0; }
 .body th, .body td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
 .body th { background: var(--bg-1); color: var(--accent); }
 .body code { font-family: var(--mono); font-size: 13px; background: var(--bg-3); padding: 1px 5px; border-radius: 4px; color: var(--accent); }
-.body strong { color: var(--ink); font-weight: 800; }
+.body strong { color: #1A120B; font-weight: 800; }
 .body a { color: var(--accent); }
 .img { max-width: 260px; border-radius: 10px; display: block; margin: 4px 0 8px; border: 2px solid #D9B77A; }
 .meta { font-size: 11px; margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }

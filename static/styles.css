@@ -64,7 +64,7 @@ button:disabled { opacity: .5; cursor: default; filter: none; box-shadow: none; 
 .brand small { color: rgba(255,255,255,.88); font-weight: 600; }
 .brand .dot { width: 30px; height: 30px; border-radius: 10px; background: #fff; display: grid; place-items: center; flex: none; box-shadow: 0 4px 14px rgba(60,30,10,.3); }
 .brand .dot::after { content: "🥐"; font-size: 17px; }
-.sidebar > .primary { margin: 14px 12px 8px; }
+.sidebar > .primary { margin: 14px 12px 8px; width: auto; } /* .wide's 100% plus the side margins pushed it out of the sidebar */
 .conversations { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px 8px; }
 .conversations::before { content: "Conversations"; font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); padding: 10px 8px 6px; }
 .conversations button { text-align: left; background: transparent; color: var(--muted); padding: 7px 8px 7px 30px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; font-weight: 500; }
@@ -74,7 +74,8 @@ button:disabled { opacity: .5; cursor: default; filter: none; box-shadow: none; 
 .conversations button.active::before { color: var(--accent); }
 .sidebar-foot { display: flex; justify-content: space-between; gap: 6px; padding: 10px 12px; background: var(--bg-0); }
 
-.main { display: flex; flex-direction: column; min-width: 0; height: 100%; position: relative; }
+.main { display: flex; flex-direction: column; min-width: 0; height: 100%; position: relative;
+  background: var(--bg-2) url("pattern.svg") left center / auto 100% no-repeat; } /* flowing contour lines behind the chat */
 .main::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--grad-soft); z-index: 2; }
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: 0 20px; height: 56px; box-shadow: 0 1px 0 var(--line); }
 .topbar h2 { margin: 0; font-size: 16px; font-weight: 700; }

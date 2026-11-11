@@ -103,7 +103,8 @@ class Run(Base):
 # The conversation log, for people who read the database (Railway's Data tab): one row per question,
 # with the sign-in name beside the ids. Plain columns, no primary key: nothing in the app reads it
 # back and a row is written once, when the turn ends. Times are UTC. `time_message_sent` is when the
-# reply finished and stays empty when no reply was saved (error, or the browser went away).
+# user's message came in; `time_answer_sent` is when the reply finished and stays empty when no
+# reply was saved (error, or the browser went away).
 conversation_log = Table(
     "conversations",
     Base.metadata,
@@ -111,8 +112,8 @@ conversation_log = Table(
     Column("user_id", Integer, ForeignKey("users.id"), nullable=False, index=True),
     Column("user_name", String(40), nullable=False),
     Column("message", Text, nullable=False),
-    Column("time_user_entered", DateTime, nullable=False, index=True),
-    Column("time_message_sent", DateTime, nullable=True),
+    Column("time_message_sent", DateTime, nullable=False, index=True),
+    Column("time_answer_sent", DateTime, nullable=True),
 )
 
 
@@ -214,11 +215,29 @@ def _retire_old_conversations_layout(bind) -> None:
             conn.execute(text(f"DROP TABLE {t}"))
 
 
+def _rename_log_time_columns(bind) -> None:
+    """One-time rename (2026-11-11), values kept: `time_message_sent` (when the reply finished) became
+    `time_answer_sent`, then `time_user_entered` (when the question came in) became `time_message_sent`.
+    The order matters, or the second rename would collide with the first name. Does nothing once
+    `time_user_entered` is gone, so a restart, or a rename someone already ran by hand, is safe."""
+    insp = inspect(bind)
+    if "conversations" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("conversations")}
+    if "time_user_entered" not in cols:
+        return
+    with bind.begin() as conn:
+        if "time_message_sent" in cols and "time_answer_sent" not in cols:
+            conn.execute(text("ALTER TABLE conversations RENAME COLUMN time_message_sent TO time_answer_sent"))
+        conn.execute(text("ALTER TABLE conversations RENAME COLUMN time_user_entered TO time_message_sent"))
+
+
 def init_db(bind=None, data_dir: Path | None = None) -> dict:
     """Create tables, record the schema version, seed reference data if empty."""
     bind = bind or engine
     data_dir = data_dir or (ROOT / "data")
     _retire_old_conversations_layout(bind)
+    _rename_log_time_columns(bind)
     Base.metadata.create_all(bind)
     report = {"schema_version": SCHEMA_VERSION, "suppliers_seeded": 0, "sales_seeded": 0}
     with Session(bind) as db:

@@ -1,6 +1,7 @@
 """The `conversations` table (app/db.py): one row per question, with the sign-in name and two times.
 
-Columns, in order: conversation_id, user_id, user_name, message, time_user_entered, time_message_sent.
+Columns, in order: conversation_id, user_id, user_name, message, time_message_sent, time_answer_sent.
+`time_message_sent` is when the user's message came in; `time_answer_sent` is when the bot's reply finished.
 The app's own chat list lives in `chats`; messages keep both sides of every chat.
 """
 import pytest
@@ -11,7 +12,7 @@ from app.costs import Usage
 from app.db import SessionLocal, User, conversation_log, init_db
 from tests.conftest import read_sse
 
-COLUMNS = ["conversation_id", "user_id", "user_name", "message", "time_user_entered", "time_message_sent"]
+COLUMNS = ["conversation_id", "user_id", "user_name", "message", "time_message_sent", "time_answer_sent"]
 
 
 def _reply(text_: str):
@@ -20,7 +21,7 @@ def _reply(text_: str):
 
 
 def _rows(db, conversation_id: int):
-    q = select(conversation_log).where(conversation_log.c.conversation_id == conversation_id).order_by(conversation_log.c.time_user_entered)
+    q = select(conversation_log).where(conversation_log.c.conversation_id == conversation_id).order_by(conversation_log.c.time_message_sent)
     return db.execute(q).mappings().all()
 
 
@@ -41,8 +42,8 @@ def test_an_answered_question_is_stored_with_name_and_both_times(client, db, log
     assert row["user_id"] == logged_in["id"]
     assert row["user_name"] == "Dana"
     assert row["message"] == "What sold best last week?"
-    assert row["time_user_entered"] is not None
-    assert row["time_message_sent"] >= row["time_user_entered"]
+    assert row["time_message_sent"] is not None
+    assert row["time_answer_sent"] >= row["time_message_sent"]
 
 
 def test_each_follow_up_gets_its_own_row_in_the_same_conversation(client, db, logged_in, fake):
@@ -57,7 +58,7 @@ def test_each_follow_up_gets_its_own_row_in_the_same_conversation(client, db, lo
     assert {r["user_name"] for r in rows} == {"Dana"}
 
 
-def test_a_dropped_connection_keeps_the_question_but_has_no_sent_time(client, db, logged_in, fake):
+def test_a_dropped_connection_keeps_the_question_but_has_no_answer_time(client, db, logged_in, fake):
     fake.turns.append(_reply("This reply will be cut off."))
     with SessionLocal() as s:
         user = s.query(User).filter_by(name="Dana").one()
@@ -69,8 +70,8 @@ def test_a_dropped_connection_keeps_the_question_but_has_no_sent_time(client, db
     (row,) = _rows(db, meta["conversation_id"])
 
     assert row["message"] == "cut me off"
-    assert row["time_user_entered"] is not None
-    assert row["time_message_sent"] is None
+    assert row["time_message_sent"] is not None
+    assert row["time_answer_sent"] is None
 
 
 # ---- the one-time switch from the old layout (conversations with a title) ----
@@ -115,3 +116,28 @@ def test_an_old_layout_that_holds_chats_stops_startup_instead_of_losing_them(tmp
         init_db(bind=engine, data_dir=tmp_path)
 
     assert "title" in [c["name"] for c in inspect(engine).get_columns("conversations")]  # untouched
+
+
+# ---- the one-time rename of the two time columns (the layout first deployed on 2026-11-11) ----
+
+FIRST_SIX_COLUMNS = """
+CREATE TABLE conversations (conversation_id INTEGER NOT NULL, user_id INTEGER NOT NULL, user_name VARCHAR(40) NOT NULL,
+                            message TEXT NOT NULL, time_user_entered DATETIME NOT NULL, time_message_sent DATETIME)
+"""
+
+
+def test_the_first_time_column_names_are_renamed_and_their_values_move_with_them(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'first.db'}")
+    with engine.begin() as conn:
+        conn.execute(text(FIRST_SIX_COLUMNS))
+        conn.execute(text("INSERT INTO conversations VALUES (7, 1, 'Dana', 'hi', '2026-11-11 10:00:00', '2026-11-11 10:00:05')"))
+
+    init_db(bind=engine, data_dir=tmp_path)
+
+    assert [c["name"] for c in inspect(engine).get_columns("conversations")] == COLUMNS
+    with engine.connect() as conn:
+        row = conn.execute(select(conversation_log)).mappings().one()
+    assert str(row["time_message_sent"]) == "2026-11-11 10:00:00"  # was time_user_entered
+    assert str(row["time_answer_sent"]) == "2026-11-11 10:00:05"  # was time_message_sent
+    init_db(bind=engine, data_dir=tmp_path)  # run twice: the second start must be a no-op
+    assert [c["name"] for c in inspect(engine).get_columns("conversations")] == COLUMNS

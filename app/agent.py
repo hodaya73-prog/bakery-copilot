@@ -253,10 +253,10 @@ def run_turn(db: Session, *, user: User, conversation: Conversation | None, text
         run.tool_calls, run.tool_names = tool_calls, ",".join(tool_names)[:200]
         run.duration_ms = int((time.monotonic() - started) * 1000)
         db.add(run)
-        # The readable log (table `conversations`): the question, who asked, when it came in and when the reply was sent.
+        # The readable log (table `conversations`): the question, who asked, when it came in (time_message_sent) and when the answer was sent.
         db.execute(conversation_log.insert().values(
             conversation_id=conversation.id, user_id=user.id, user_name=user.name, message=user_msg.content,
-            time_user_entered=user_msg.created_at, time_message_sent=reply_sent_at))
+            time_message_sent=user_msg.created_at, time_answer_sent=reply_sent_at))
         db.commit()
 
     try:

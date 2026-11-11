@@ -70,19 +70,25 @@ button:disabled { opacity: .5; cursor: default; filter: none; box-shadow: none; 
 /* ---------- layout ---------- */
 .app { display: grid; grid-template-columns: 272px 1fr auto; height: 100%; }
 .sidebar { background: var(--bg-1); display: flex; flex-direction: column; min-width: 0; box-shadow: 1px 0 0 var(--line); }
-.brand { display: flex; align-items: center; gap: 12px; padding: 14px 16px; height: 56px; box-shadow: 0 1px 0 var(--line); background: var(--grad); color: #fff; }
-.brand small { color: rgba(255,255,255,.88); font-weight: 600; }
-.brand .dot { width: 30px; height: 30px; border-radius: 10px; background: #fff; display: grid; place-items: center; flex: none; box-shadow: 0 4px 14px rgba(60,30,10,.3); }
-.brand .dot::after { content: "🥐"; font-size: 17px; }
-.sidebar > .primary { margin: 14px 12px 8px; width: auto; } /* .wide's 100% plus the side margins pushed it out of the sidebar */
+/* script name over a thin honey rule, in the same hand as the wordmark */
+.brand { padding: 26px 16px 18px; text-align: center; }
+.brand::after { content: ""; display: block; width: 56px; height: 1px; margin: 16px auto 0; background: var(--honey); }
+.brand strong { display: block; font-family: "Great Vibes", "Segoe Script", "Snell Roundhand", cursive; font-weight: 400; font-size: 40px; line-height: 1; color: var(--accent); }
+.brand small { margin-top: 10px; font-family: Georgia, "Times New Roman", serif; font-size: 10px; letter-spacing: .24em; text-transform: uppercase; color: var(--muted); }
+.sidebar > .primary { margin: 6px 20px 10px; width: auto; /* .wide's 100% plus the side margins pushed it out of the sidebar */
+  background: rgba(255,255,255,.75); color: var(--accent); border: 1px solid #D9B77A; border-radius: 999px; box-shadow: none;
+  font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; padding: 10px 14px; }
+.sidebar > .primary:hover { background: var(--accent); color: #fff; border-color: var(--accent); filter: none; }
 .conversations { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px 8px; }
-.conversations::before { content: "Conversations"; font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); padding: 10px 8px 6px; }
+.conversations::before { content: "Conversations"; font-family: Georgia, "Times New Roman", serif; font-size: 10px; letter-spacing: .26em; text-transform: uppercase; color: var(--muted); padding: 14px 10px 8px; }
+.conversations button { font-family: Georgia, "Times New Roman", serif; font-size: 14px; }
 .conversations button { text-align: left; background: transparent; color: var(--muted); padding: 7px 8px 7px 30px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; font-weight: 500; }
 .conversations button::before { content: "#"; position: absolute; left: 10px; top: 6px; color: var(--dim); font-weight: 800; }
 .conversations button:hover { background: var(--bg-3); color: var(--ink); filter: none; }
 .conversations button.active { background: var(--bg-4); color: var(--ink); font-weight: 700; }
 .conversations button.active::before { color: var(--accent); }
-.sidebar-foot { display: flex; justify-content: space-between; gap: 6px; padding: 10px 12px; background: var(--bg-0); }
+.sidebar-foot { display: flex; justify-content: space-between; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.sidebar-foot button { font-family: Georgia, "Times New Roman", serif; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
 
 .main { display: flex; flex-direction: column; min-width: 0; height: 100%; position: relative; isolation: isolate;
   background: var(--bg-2) url("pattern.svg") left center / auto 100% no-repeat; } /* flowing contour lines behind the chat */
@@ -127,9 +133,11 @@ button:disabled { opacity: .5; cursor: default; filter: none; box-shadow: none; 
 .cursor::after { content: "▍"; color: var(--accent); animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 .empty { color: var(--muted); text-align: center; margin: 70px 24px 0; }
-.empty p { font-size: 18px; font-weight: 700; color: var(--ink); }
-.empty .hint { display: inline-block; margin: 6px; padding: 8px 14px; border-radius: 999px; cursor: pointer; background: var(--bg-1); color: var(--ink); border: 1px solid var(--line); transition: all .15s; }
-.empty .hint:hover { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 14px rgba(154,90,34,.2); }
+.empty p { font-family: Georgia, "Times New Roman", serif; font-size: 22px; font-weight: 400; letter-spacing: .01em; color: var(--ink); text-shadow: 0 0 10px #fff, 0 0 4px #fff; }
+/* suggested questions: thin honey outline, serif italic, a soft lift on hover */
+.empty .hint { display: inline-block; margin: 6px; padding: 9px 20px; border-radius: 999px; cursor: pointer; background: rgba(255,255,255,.9); color: var(--ink); border: 1px solid #D9B77A;
+  font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 14px; letter-spacing: .02em; transition: all .18s; }
+.empty .hint:hover { border-color: var(--accent); background: var(--bg-1); color: var(--accent); box-shadow: 0 6px 16px rgba(154,90,34,.18); transform: translateY(-1px); }
 
 /* ---------- composer ---------- */
 .composer { display: flex; gap: 10px; padding: 10px 20px 20px; align-items: flex-end; }
@@ -159,12 +167,13 @@ button:disabled { opacity: .5; cursor: default; filter: none; box-shadow: none; 
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .sidebar { flex-direction: row; align-items: center; overflow-x: auto; }
-  .brand { height: auto; padding: 10px 14px; } .brand small { display: none; }
+  .brand { padding: 6px 14px; text-align: left; } .brand::after { display: none; } .brand strong { font-size: 30px; white-space: nowrap; } .brand small { display: none; }
   .sidebar > .primary { margin: 8px; width: auto; flex: none; white-space: nowrap; }
   .conversations { flex-direction: row; padding: 8px; } .conversations::before { display: none; }
   .conversations button { max-width: 150px; }
-  .sidebar-foot { margin-left: auto; background: transparent; }
+  .sidebar-foot { margin-left: auto; border-top: 0; }
   .panel { position: fixed; inset: auto 0 0 0; max-height: 60vh; width: auto; }
   .msg { padding: 8px 14px; }
+  .wordmark { top: 70%; }
   .main::after { opacity: .3; background: url("croissant.png") right 0 bottom 17% / 78% auto no-repeat; }
 }

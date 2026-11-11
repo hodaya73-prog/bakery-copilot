@@ -57,6 +57,16 @@ button:disabled { opacity: .5; cursor: default; filter: none; box-shadow: none; 
 .card input { display: block; width: 100%; margin-top: 6px; padding: 11px 12px; font: inherit; font-size: 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-1); color: var(--ink); text-transform: none; letter-spacing: 0; }
 .card input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(154,90,34,.2); }
 
+/* ---------- wordmark (KAKUN Pâtisserie), a watermark in the middle of the chat ---------- */
+/* Great Vibes (SIL OFL, see fonts/OFL.txt), subset to Basic Latin + â. */
+@font-face { font-family: "Great Vibes"; src: url("fonts/GreatVibes-subset.woff2") format("woff2"); font-display: swap; }
+.wordmark { position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; user-select: none;
+  display: flex; flex-direction: column; align-items: center; color: var(--accent); opacity: .85;
+  text-shadow: 0 0 14px #fff, 0 0 6px #fff, 0 0 2px #fff; } /* the white halo lifts it off the wave lines */
+.wm-top { font-family: Georgia, "Times New Roman", serif; color: var(--tag); font-size: clamp(16px, 2.2vw, 26px); letter-spacing: .62em; margin-right: -.62em; /* cancels the trailing gap so it stays centred */ }
+.wm-rule { display: block; width: 56px; height: 1px; margin: 12px 0 2px; background: var(--honey); box-shadow: none; }
+.wm-script { font-family: "Great Vibes", "Segoe Script", "Snell Roundhand", cursive; font-size: clamp(54px, 8vw, 108px); line-height: 1.05; white-space: nowrap; }
+
 /* ---------- layout ---------- */
 .app { display: grid; grid-template-columns: 272px 1fr auto; height: 100%; }
 .sidebar { background: var(--bg-1); display: flex; flex-direction: column; min-width: 0; box-shadow: 1px 0 0 var(--line); }

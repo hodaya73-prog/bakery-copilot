@@ -98,8 +98,8 @@ button:disabled { opacity: .5; cursor: default; filter: none; box-shadow: none; 
               url("toast.png") right 0 top 38% / min(50%, 460px) auto no-repeat; }
 .main::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--grad-soft); z-index: 2; }
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: 0 20px; height: 56px; box-shadow: 0 1px 0 var(--line); }
-.topbar h2 { margin: 0; font-size: 16px; font-weight: 700; }
-.topbar h2::before { content: "# "; color: var(--dim); }
+.topbar h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: 400; letter-spacing: .02em; color: var(--ink); }
+.topbar h2:not(:empty)::after { content: ""; display: block; width: 28px; height: 1px; margin-top: 3px; background: var(--honey); }
 .status { font-size: 12px; color: var(--good); font-weight: 700; }
 
 /* ---------- messages (Discord rows) ---------- */
@@ -141,11 +141,13 @@ button:disabled { opacity: .5; cursor: default; filter: none; box-shadow: none; 
 
 /* ---------- composer ---------- */
 .composer { display: flex; gap: 10px; padding: 10px 20px 20px; align-items: flex-end; }
-.composer textarea { flex: 1; resize: none; font: inherit; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-1); color: var(--ink); max-height: 160px; }
-.composer textarea::placeholder { color: var(--dim); }
-.composer textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(154,90,34,.2); }
-.attach { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; cursor: pointer; background: var(--bg-3); color: var(--muted); font-size: 18px; transition: all .15s; }
-.attach:hover { color: var(--accent); box-shadow: 0 0 12px rgba(154,90,34,.25); }
+/* the writing place: a white pill with a thin honey line, serif italic hint; round attach and a caramel Send to match */
+.composer textarea { flex: 1; resize: none; font-family: Georgia, "Times New Roman", serif; font-size: 15px; line-height: 1.4; min-height: 46px; padding: 12px 22px; border: 1px solid #D9B77A; border-radius: 24px; background: rgba(255,255,255,.94); color: var(--ink); max-height: 160px; box-shadow: 0 6px 20px rgba(154,90,34,.10); transition: border-color .15s, box-shadow .15s; }
+.composer textarea::placeholder { color: var(--dim); font-style: italic; }
+.composer textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 6px 22px rgba(154,90,34,.16), 0 0 0 3px rgba(154,90,34,.14); }
+.attach { display: grid; place-items: center; width: 46px; height: 46px; flex: none; border-radius: 50%; cursor: pointer; background: rgba(255,255,255,.94); border: 1px solid #D9B77A; color: var(--accent); font-size: 17px; transition: all .15s; }
+.attach:hover { background: var(--bg-1); border-color: var(--accent); box-shadow: 0 6px 16px rgba(154,90,34,.18); }
+.composer .primary { height: 46px; padding: 0 28px; border-radius: 999px; font-family: Georgia, "Times New Roman", serif; font-size: 13px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; box-shadow: 0 6px 16px rgba(138,79,31,.28); }
 .attach input { display: none; }
 .attachment { margin: -14px 20px 12px; font-size: 12px; color: var(--good); font-weight: 700; }
 
@@ -175,5 +177,9 @@ button:disabled { opacity: .5; cursor: default; filter: none; box-shadow: none; 
   .panel { position: fixed; inset: auto 0 0 0; max-height: 60vh; width: auto; }
   .msg { padding: 8px 14px; }
   .wordmark { top: 70%; }
+  .composer { gap: 8px; padding: 10px 12px 16px; }
+  .composer textarea { padding: 12px 14px; font-size: 14px; }
+  .composer .primary { padding: 0 16px; letter-spacing: .14em; }
+  .attach { width: 42px; height: 42px; }
   .main::after { opacity: .3; background: url("croissant.png") right 0 bottom 17% / 78% auto no-repeat; }
 }

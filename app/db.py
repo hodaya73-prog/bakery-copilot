@@ -22,6 +22,7 @@ from sqlalchemy import (
     create_engine,
     func,
     select,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
@@ -168,11 +169,31 @@ def get_db():
 # Startup: schema, version, seed data
 # ---------------------------------------------------------------------------
 
+# Read-only views for people who look at the database (Railway's Data tab, psql). Nothing in the
+# app reads them. `create_all` never alters or creates views, so each start drops and recreates
+# them; a view holds no rows, so that loses nothing and a changed definition is picked up at once.
+VIEWS = {
+    # The sign-in name next to the user_id it belongs to (the name lives in `users`).
+    "conversations_with_user": """
+        SELECT c.id, c.user_id, u.name AS user_name, c.title, c.created_at, c.updated_at
+        FROM conversations c JOIN users u ON u.id = c.user_id
+    """,
+}
+
+
+def _create_views(bind) -> None:
+    with bind.begin() as conn:
+        for name, select_sql in VIEWS.items():
+            conn.execute(text(f"DROP VIEW IF EXISTS {name}"))
+            conn.execute(text(f"CREATE VIEW {name} AS {select_sql}"))
+
+
 def init_db(bind=None, data_dir: Path | None = None) -> dict:
-    """Create tables, record the schema version, seed reference data if empty."""
+    """Create tables and views, record the schema version, seed reference data if empty."""
     bind = bind or engine
     data_dir = data_dir or (ROOT / "data")
     Base.metadata.create_all(bind)
+    _create_views(bind)
     report = {"schema_version": SCHEMA_VERSION, "suppliers_seeded": 0, "sales_seeded": 0}
     with Session(bind) as db:
         if db.scalar(select(func.count()).select_from(SchemaVersion)) == 0:

@@ -37,6 +37,7 @@ Postgres on Railway (`DATABASE_URL` from the plugin); SQLite locally and in test
 | suppliers | id | seeded from data/suppliers.csv |
 | sales | id | seeded from data/bakery_sales.csv; read-only through `sales_query` |
 | schema_version | version | 1; created with `create_all` at start |
+| conversations_with_user | (view) | `conversations` plus `user_name`, right after `user_id`; for people reading the database (Railway's Data tab, psql); nothing in the app reads it; dropped and recreated at every start by `init_db` |
 
 ## Model
 
@@ -80,4 +81,5 @@ One Railway project, three things in it: the **web service**, built by Railway's
 | 2026-10-27 | Railpack build, no Dockerfile | The Dockerfile only pinned Python and ran pip; Railway's default builder does the same from `requirements.txt` and `.python-version`, one file less to keep current | A system package (apt) or a multi-stage build is needed, or Railway drops Railpack |
 | 2026-10-27 | Infrastructure as Code (`.railway/railway.ts`) instead of `railway.json` | Railway deprecated config-as-code files (they stop working on 2026-12-01); one IaC file describes both services, so the cron service needs no config path of its own | Railway changes the IaC format again, or a setting the DSL cannot express |
 | 2026-11-04 | Chat history is resent as text only; the system prompt says earlier replies were tool-checked and must not be re-checked or retracted unasked | The first live chats showed the model, seeing its old figures without the tool calls behind them, re-running tools on unrelated turns and telling users their searches "never ran" (issue #2). A prompt rule fixes it with no schema change | The eval `no_recheck_after_off_topic` regresses → store a compact tool trace per message and replay it (a schema change, so add Alembic first) |
+| 2026-11-11 | A view `conversations_with_user`, not a `user_name` column on `conversations` | The name already lives in `users`; a view shows it next to `user_id` with no copied data and no table change, so the `create_all` decision above still holds and Alembic is not needed yet | A column is wanted for an app query or an index, or a tool that cannot show views → add the column with Alembic |
 | 2026-10-28 | Public repository, history restarted as one commit | No secrets live in the code (they are in Variables) and the dataset is mock data; a fresh history keeps the owner's personal email out, and the old private repo is kept as `bakery-copilot-archive` | Real client data or client-specific configuration has to be committed |

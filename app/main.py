@@ -33,8 +33,19 @@ async def lifespan(app: FastAPI):
     yield
 
 
+class RevalidatedStaticFiles(StaticFiles):
+    """Static files with `Cache-Control: no-cache`: the browser keeps its copy but asks before each use
+    (the ETag makes that a 304 when nothing changed). Without it a browser may show an old design for
+    hours after a deploy, because the files carry no expiry and the file names never change."""
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 app = FastAPI(title="Bakery Copilot", version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None)
-app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
+app.mount("/static", RevalidatedStaticFiles(directory=str(ROOT / "static")), name="static")
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +74,7 @@ class ChatIn(BaseModel):
 
 @app.get("/", include_in_schema=False)
 def index():
-    return FileResponse(ROOT / "static" / "index.html")
+    return FileResponse(ROOT / "static" / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/health")

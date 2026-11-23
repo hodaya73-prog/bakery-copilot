@@ -22,7 +22,6 @@
   <div id="app" class="app hidden">
     <aside class="sidebar">
       <div class="brand">
-        <span class="dot"></span>
         <div><strong>Bakery Copilot</strong><small id="who"></small></div>
       </div>
       <button id="new-chat" class="primary wide">+ New chat</button>
@@ -34,8 +33,13 @@
     </aside>
 
     <main class="main">
+      <div class="wordmark" aria-hidden="true">
+        <span class="wm-top">KAKUN</span>
+        <i class="wm-rule"></i>
+        <span class="wm-script">Pâtisserie</span>
+      </div>
       <header class="topbar">
-        <h2 id="conv-title">New chat</h2>
+        <h2 id="conv-title"></h2>
         <span id="status" class="status"></span>
       </header>
 

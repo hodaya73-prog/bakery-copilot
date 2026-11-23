@@ -36,7 +36,7 @@
       await loadConversations();
     } catch (err) { $("login-error").textContent = err.message; }
   });
-  $("logout").addEventListener("click", async () => { await api("/api/logout", { method: "POST" }).catch(() => {}); state.user = null; state.current = null; showLogin(); });
+  $("logout").addEventListener("click", async () => { await api("/api/logout", { method: "POST" }).catch(() => {}); state.user = null; state.current = null; $("conv-title").textContent = ""; showLogin(); });
 
   // ---------- conversations ----------
   async function loadConversations() {
@@ -72,7 +72,8 @@
       <span class="hint" data-q="How many Challah did we sell in August 2026?">Challah in August 2026</span></div>`;
     $("messages").querySelectorAll(".hint").forEach((h) => h.addEventListener("click", () => { $("input").value = h.dataset.q; $("input").focus(); }));
   }
-  $("new-chat").addEventListener("click", () => { state.current = null; $("conv-title").textContent = "New chat"; renderConversations(); renderEmpty(); $("input").focus(); });
+  // No title until a chat has started: the name only appears once the first message creates the conversation.
+  $("new-chat").addEventListener("click", () => { state.current = null; $("conv-title").textContent = ""; renderConversations(); renderEmpty(); $("input").focus(); });
 
   // ---------- messages ----------
   function addBubble(role, text, { hasImage = false, imageDataUrl = null, time = null } = {}) {

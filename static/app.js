@@ -15,7 +15,8 @@
     return res.status === 204 ? null : res.json();
   }
   function render(md) {
-    if (window.marked) { try { return marked.parse(md, { breaks: true }); } catch (_) {} }
+    // Replies come from the model, so they never go into the page as raw HTML: SafeMarkdown escapes first (static/render.js).
+    if (window.SafeMarkdown) { try { return SafeMarkdown.render(md); } catch (_) {} }
     const div = document.createElement("div"); div.textContent = md; return div.innerHTML.replace(/\n/g, "<br>");
   }
   function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
@@ -160,7 +161,7 @@
   // ---------- invoices panel ----------
   async function loadInvoices() {
     const rows = await api("/api/invoices");
-    $("invoice-rows").innerHTML = rows.map((r) => `<tr><td>${r.invoice_date || (r.created_at || "").slice(0, 10)}</td><td>${escapeHtml(r.supplier)}<br><small>${escapeHtml(r.invoice_number || "")}</small></td><td>${r.amount == null ? "—" : r.amount.toLocaleString() + " " + r.currency}</td><td><span class="badge ${r.status}">${r.status.replace(/_/g, " ")}</span>${r.flagged ? '<span class="badge flag">flag</span>' : ""}</td></tr>`).join("") || `<tr><td colspan="4"><small>No invoices yet.</small></td></tr>`;
+    $("invoice-rows").innerHTML = rows.map((r) => `<tr><td>${escapeHtml(r.invoice_date || (r.created_at || "").slice(0, 10))}</td><td>${escapeHtml(r.supplier)}<br><small>${escapeHtml(r.invoice_number || "")}</small></td><td>${r.amount == null ? "—" : escapeHtml(r.amount.toLocaleString()) + " " + escapeHtml(r.currency)}</td><td><span class="badge ${escapeHtml(r.status)}">${escapeHtml(r.status.replace(/_/g, " "))}</span>${r.flagged ? '<span class="badge flag">flag</span>' : ""}</td></tr>`).join("") || `<tr><td colspan="4"><small>No invoices yet.</small></td></tr>`;
   }
   $("toggle-invoices").addEventListener("click", async () => { $("invoices").classList.toggle("hidden"); if (!$("invoices").classList.contains("hidden")) await loadInvoices(); });
   $("close-invoices").addEventListener("click", () => $("invoices").classList.add("hidden"));

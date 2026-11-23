@@ -12,7 +12,7 @@ Written while everything works. Each entry is a sequence: click here, run this, 
 
 1. Check `https://status.anthropic.com`. If there is an incident, wait; the SDK already retries 429/529.
 2. Check the day cap: `GET /api/stats` (signed in). If `spend_today_usd ≥ daily_cap_usd`, the app is doing its job; raise `DAILY_CAP_USD` in Variables only if Dana agrees to the cost.
-3. Check the key: `/health` says `ANTHROPIC_API_KEY missing` if the variable was lost. Set it in Variables and redeploy.
+3. Check the key: the deploy log shows `health_degraded problems='ANTHROPIC_API_KEY missing'` if the variable was lost (`/health` itself answers 503 and says no more unless the request carries the `X-Cron-Secret` header). Set it in Variables and redeploy.
 4. Look at the `runs` table for `status = 'error'` and the `error` column.
 
 ## A key leaked (in a commit, a chat, a screenshot)
@@ -38,7 +38,7 @@ Written while everything works. Each entry is a sequence: click here, run this, 
 ## Deploy is stuck or the health check never passes
 
 1. Logs → look for the seed report (`sales_seeded: 29115`). A first deploy seeds the sales table and can take a minute; the health check timeout is 120 s.
-2. If the database URL is wrong, `/health` returns 503 with `db:` in `problems`. Check the `DATABASE_URL` reference variable.
+2. If the database URL is wrong, `/health` returns 503 and the deploy log shows `health_degraded` with `db:` in `problems` (the response body shows it too when the request carries `X-Cron-Secret`). Check the `DATABASE_URL` reference variable.
 3. Rollback to the previous deploy if users are waiting; fix in a PR.
 
 ## Who to call

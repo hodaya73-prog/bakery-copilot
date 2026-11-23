@@ -2,7 +2,7 @@
 
 A review of Bakery Copilot against the OWASP Top 10:2025, done on 2026-11-23 at commit `80cb6a5` (branch `conversations-user-name-view`). It lists every weakness found, where it is in the code, and the fix. Line numbers are for that commit and will drift as the code changes; search for the function name if a line has moved.
 
-**Status of every item below: open.** Tick the box and add the commit when one is fixed.
+**Status.** Eleven items were fixed on 2026-11-23 on the `security-fixes` branch (SP-01, SP-02, SP-03, SP-05, SP-07, SP-08, SP-09, SP-10, SP-11, SP-19, SP-22) and one is partly fixed (SP-17). How each was fixed, and how it was checked, is in [SecuritySolutions.md](SecuritySolutions.md). Every other item is still open. The descriptions below are the problems as they were found; a ticked box means the problem no longer exists in the code. Tick the box and name the commit when another one is fixed.
 
 ## How this was checked
 
@@ -61,7 +61,7 @@ A review of Bakery Copilot against the OWASP Top 10:2025, done on 2026-11-23 at 
 - **Where:** `app/main.py:199`.
 - **Problem:** a plain string comparison can leak the secret's length and content through timing.
 - **Fix:** use `hmac.compare_digest`, as `app/auth.py` already does for the password.
-- [ ] fixed
+- [x] fixed on the security-fixes branch; see SecuritySolutions.md (SP-10)
 
 ### SP-23 Everyone sees all invoices and the global spend (Low)
 - **Where:** `app/main.py:183` (`/api/invoices`), `app/main.py:190` (`/api/stats`).
@@ -77,25 +77,25 @@ A review of Bakery Copilot against the OWASP Top 10:2025, done on 2026-11-23 at 
 - **Where:** `app/main.py` (no middleware sets any).
 - **Problem:** the app sends none of `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` or `Strict-Transport-Security`. The page can be framed by another site, and nothing limits what scripts may run (which makes SP-01 worse).
 - **Fix:** add the headers in one place. Start with a strict `Content-Security-Policy` (`default-src 'self'`, no inline scripts), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and HSTS. Do not use a middleware that wraps the streaming chat response without testing disconnects (see SP-19).
-- [ ] fixed
+- [x] fixed on the security-fixes branch; see SecuritySolutions.md (SP-07)
 
 ### SP-08 `/openapi.json` is public (Low)
 - **Where:** `app/main.py:47` (`docs_url=None, redoc_url=None` but `openapi_url` is left on).
 - **Problem:** it lists every endpoint and field to anyone.
 - **Fix:** pass `openapi_url=None`.
-- [ ] fixed
+- [x] fixed on the security-fixes branch; see SecuritySolutions.md (SP-08)
 
 ### SP-09 `/health` shows internals without sign-in (Low)
 - **Where:** `app/main.py:81`.
 - **Problem:** it returns the environment name, model, provider and database type.
 - **Fix:** return only `{"status": "ok"}` publicly; keep the detail in the deploy log. Railway only needs the status code.
-- [ ] fixed
+- [x] fixed on the security-fixes branch; see SecuritySolutions.md (SP-09)
 
 ### SP-05 No password rules; defaults fail open (Medium)
 - **Where:** `app/config.py:93` (`APP_ENV` defaults to `local`), `app/config.py:112` (`app_password or "bakery"`), `app/config.py:113` (random secret if missing).
 - **Problem:** if `APP_ENV` is ever missing in production, the app starts silently with the password `bakery`. Any password, however short, is accepted at setup.
 - **Fix:** treat a missing `APP_ENV` as production, allow the `bakery` fallback only when `APP_ENV=local` is set on purpose, and require at least 16 characters for the password in production at startup.
-- [ ] fixed
+- [x] fixed on the security-fixes branch; see SecuritySolutions.md (SP-05)
 
 ## A03 Software Supply Chain Failures
 
@@ -105,7 +105,7 @@ A review of Bakery Copilot against the OWASP Top 10:2025, done on 2026-11-23 at 
 - **Where:** `static/index.html:8` (`marked` 12.0.2 from `cdnjs.cloudflare.com`).
 - **Problem:** if that CDN or the file were tampered with, attacker code would run in every user's session.
 - **Fix:** copy `marked.min.js` into `static/` and load it from there, or add `integrity="sha384-…"` and `crossorigin="anonymous"`.
-- [ ] fixed
+- [x] fixed on the security-fixes branch; see SecuritySolutions.md (SP-11)
 
 ### SP-12 Indirect dependencies are not pinned; `pytest` ships to production (Low)
 - **Where:** `requirements.txt` (only direct packages; `pytest==9.1.1` on line 9).
@@ -143,13 +143,13 @@ A review of Bakery Copilot against the OWASP Top 10:2025, done on 2026-11-23 at 
 - **Where:** `static/app.js:17-19` (`render`, uses `marked`), `:145`, `:148`, `:152` (the reply is assigned to `innerHTML`), `static/index.html:8`.
 - **Problem:** the reply is turned from Markdown into HTML and inserted as is. HTML in a reply, including an event handler, runs as script in the page. This was reproduced on a local copy. The reply comes from the model, so the realistic route is prompt injection, for example hostile text inside an invoice photo. The script then runs in a staff member's browser and can call the API as them. The session cookie is `HttpOnly`, so it cannot be read.
 - **Fix, in order:** (1) a strict Content-Security-Policy that blocks inline scripts (SP-07); (2) sanitise the output with a maintained sanitiser (a new dependency, so agree it first) or stop `marked` from passing raw HTML through; (3) never insert replies with `innerHTML` without sanitising. Add a test that a reply containing HTML is shown as text.
-- [ ] fixed
+- [x] fixed on the security-fixes branch; see SecuritySolutions.md (SP-01)
 
 ### SP-22 Some invoice fields are not escaped (Low)
 - **Where:** `static/app.js:163` (`invoice_date`, `amount`, `currency`, `status` are inserted unescaped; supplier and invoice number are escaped).
 - **Problem:** the model fills `currency` (cut to three characters) and a future change could widen these fields.
 - **Fix:** run every field through `escapeHtml`, or build the table with `textContent`.
-- [ ] fixed
+- [x] fixed on the security-fixes branch; see SecuritySolutions.md (SP-22)
 
 ### SP-16 Prompt injection can misuse the tools (Medium)
 - **Where:** `app/tools/registry.py` (the tool definitions and `execute`), `app/tools/invoices.py:50-85` (`log_invoice`).
@@ -177,13 +177,13 @@ A review of Bakery Copilot against the OWASP Top 10:2025, done on 2026-11-23 at 
 - **Where:** `app/main.py:103` (`login`).
 - **Problem:** wrong passwords are answered at full speed with no delay or lockout (40 attempts in about 0.1 second were all answered). With one shared password as the only gate, this is the most direct way in.
 - **Fix:** count failed attempts per client address and per name, add a growing delay or a temporary block, and log each failure (SP-17). A long passphrase (SP-05) makes guessing impractical.
-- [ ] fixed
+- [x] fixed on the security-fixes branch; see SecuritySolutions.md (SP-02)
 
 ### SP-03 Large requests are read before sign-in (High)
 - **Where:** `app/main.py:60-65` (`ImageIn.data` has no `max_length`), `app/main.py:148-155` (`chat`), `app/limits.py:49` (`check_upload_size` runs after the body is parsed).
 - **Problem:** FastAPI reads and validates the whole JSON body before the sign-in check runs. An unauthenticated caller can send very large bodies and use up memory. An 8 MB body was read and parsed before the 401 came back.
 - **Fix:** reject oversized requests early by checking `Content-Length` (and the real size while reading), put a `max_length` on the image field of about `max_upload_mb * 4/3`, and move the sign-in check ahead of body parsing, for example as a dependency on the route.
-- [ ] fixed
+- [x] fixed on the security-fixes branch; see SecuritySolutions.md (SP-03)
 
 ### SP-14 Per-user limits can be bypassed; one user can use up the shared budget (Medium)
 - **Where:** `app/limits.py:37-47`, `app/auth.py:64` (a new name creates a new user).
@@ -229,7 +229,7 @@ The unchecked CDN script is SP-11.
 - **Where:** `app/main.py:103-110` (`login`), `app/limits.py:37-47` (rate-limit and cap responses).
 - **Problem:** a guessing attack would leave no trace, and hitting a limit is not recorded. The only output is one startup line and the web server's access log, which shows Railway's proxy address, not the visitor's. The digest runs once a day and its webhook is not set.
 - **Fix:** log every failed login (time, client address from the forwarded header, name tried; never the password), log limit hits, and send an alert to the digest webhook when failures or errors pass a threshold.
-- [ ] fixed
+- [ ] partly fixed: failed, throttled and limit-hit events are now logged (SecuritySolutions.md, SP-17); the alert is still open
 
 ## A10 Mishandling of Exceptional Conditions
 
@@ -239,7 +239,7 @@ The unchecked CDN script is SP-11.
 - **Where:** `app/agent.py:247-262` (`finish_run`, the `conversations` insert at `:257`) and `:324` (the error handler calls `finish_run` again).
 - **Problem:** the `conversations` log insert runs inside the code that saves a turn. If it ever fails, the error escapes, the stream breaks, and the run record is lost.
 - **Fix:** wrap the log insert in its own try-block (or a savepoint) so logging can never block a reply or the run record.
-- [ ] fixed
+- [x] fixed on the security-fixes branch; see SecuritySolutions.md (SP-19)
 
 ### SP-20 A failed digest webhook returns a 500 (Low)
 - **Where:** `app/digest.py:60-61` (`httpx.post` and `raise_for_status`), `app/main.py` (`/internal/digest`).

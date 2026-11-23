@@ -5,18 +5,21 @@ loop itself lives in agent.py; this file is doors, locks and plumbing.
 """
 from __future__ import annotations
 
+import hmac
 import json
+import math
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from . import auth, limits
+from . import auth, limits, security
 from .agent import get_model_client, run_turn
 from .config import ROOT, settings
 from .db import Conversation, Message, SessionLocal, engine, get_db, init_db
@@ -44,8 +47,31 @@ class RevalidatedStaticFiles(StaticFiles):
         return response
 
 
-app = FastAPI(title="Bakery Copilot", version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+# Longest base64 text that decodes to the upload limit. The body cap is that plus room for the JSON around it.
+IMAGE_B64_MAX = settings.max_upload_mb * 1024 * 1024 * 4 // 3 + 4
+MAX_BODY_BYTES = IMAGE_B64_MAX + 64 * 1024
+
+# openapi_url=None as well: the schema lists every endpoint and field (SecurityProblems.md SP-08).
+app = FastAPI(title="Bakery Copilot", version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", RevalidatedStaticFiles(directory=str(ROOT / "static")), name="static")
+# The last one added is the outermost: headers go on every response, including the size guard's refusals.
+app.add_middleware(security.RequestSizeLimitMiddleware, max_bytes=MAX_BODY_BYTES)
+app.add_middleware(security.SecurityHeadersMiddleware, hsts=settings.is_production)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    """FastAPI's default 422 echoes the rejected input back (a whole oversized image, or a mistyped password).
+    Say where and why, never what was sent."""
+    problems = [{"loc": list(e.get("loc", [])), "msg": e.get("msg", ""), "type": e.get("type", "")} for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": problems})
+
+
+def cron_secret_ok(candidate: str | None) -> bool:
+    """Constant-time check of X-Cron-Secret (a plain == leaks how much of the secret matched)."""
+    if not settings.cron_secret or candidate is None:
+        return False
+    return hmac.compare_digest(candidate.encode(), settings.cron_secret.encode())
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +85,7 @@ class LoginIn(BaseModel):
 
 class ImageIn(BaseModel):
     media_type: str = Field(pattern=r"^image/(png|jpeg|webp|gif)$")
-    data: str  # base64, no data: prefix
+    data: str = Field(max_length=IMAGE_B64_MAX)  # base64, no data: prefix
 
 
 class ChatIn(BaseModel):
@@ -78,8 +104,11 @@ def index():
 
 
 @app.get("/health")
-def health(db: Session = Depends(get_db)):
-    """Railway's health check. 200 only when the database answers and a model is configured."""
+def health(db: Session = Depends(get_db), x_cron_secret: str | None = Header(default=None)):
+    """Railway's health check. 200 only when the database answers and a model is configured.
+
+    Anyone may ask whether the app is up; only the holder of the cron secret gets the detail (environment,
+    model, database type, what is wrong). Problems are always written to the log."""
     problems = []
     try:
         db.execute(text("SELECT 1"))
@@ -90,9 +119,11 @@ def health(db: Session = Depends(get_db)):
     body = {"status": "ok" if not problems else "degraded", "env": settings.environment, "model": settings.model,
             "provider": settings.model_provider, "db": "sqlite" if settings.is_sqlite else "postgres", "problems": problems,
             "time": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    detailed = cron_secret_ok(x_cron_secret)
     if problems:
-        raise HTTPException(503, body)
-    return body
+        security.log_event("health_degraded", problems="; ".join(problems))
+        raise HTTPException(503, body if detailed else {"status": "degraded"})
+    return body if detailed else {"status": "ok"}
 
 
 # ---------------------------------------------------------------------------
@@ -100,10 +131,20 @@ def health(db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @app.post("/api/login")
-def login(payload: LoginIn, response: Response, db: Session = Depends(get_db)):
+def login(payload: LoginIn, request: Request, response: Response, db: Session = Depends(get_db)):
+    ip = security.client_ip(request)
+    wait = security.login_throttle.blocked_for(ip)
+    if wait:  # too many wrong passwords from this address: not even the right one is tried until the wait is over
+        security.log_event("login_throttled", ip=ip, retry_after=wait)
+        raise HTTPException(429, f"Too many wrong passwords. Try again in {math.ceil(wait / 60)} minutes.",
+                            headers={"Retry-After": str(wait)})
     if not auth.password_ok(payload.password):
+        security.login_throttle.record_failure(ip)
+        security.log_event("login_failed", ip=ip, name=payload.name)  # never the password
         raise HTTPException(401, "Wrong password.")
+    security.login_throttle.record_success(ip)
     user = auth.get_or_create_user(db, auth.normalise_name(payload.name))
+    security.log_event("login_ok", ip=ip, user_id=user.id)
     response.set_cookie(auth.COOKIE_NAME, auth.make_token(user.id, user.name), httponly=True, samesite="lax",
                         secure=settings.is_production, max_age=settings.session_hours * 3600, path="/")
     return {"id": user.id, "name": user.name}
@@ -196,7 +237,8 @@ def stats(request: Request, db: Session = Depends(get_db)):
 @app.post("/internal/digest")
 def digest(db: Session = Depends(get_db), x_cron_secret: str | None = Header(default=None)):
     """Manual or cron trigger for the morning digest. Protected by CRON_SECRET."""
-    if not settings.cron_secret or x_cron_secret != settings.cron_secret:
+    if not cron_secret_ok(x_cron_secret):
+        security.log_event("cron_secret_rejected")
         raise HTTPException(401, "Bad or missing X-Cron-Secret.")
     body = build_digest(db)
     sent = send_digest(body)

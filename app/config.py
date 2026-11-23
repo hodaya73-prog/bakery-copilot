@@ -87,10 +87,15 @@ class Settings:
         return self.environment == "production"
 
 
+MIN_PASSWORD_LENGTH = 16  # production only; the password is the one thing between the internet and the app
+
+
 def load_settings() -> Settings:
     provider = _env("MODEL_PROVIDER", "anthropic")
     api_key = _env("ANTHROPIC_API_KEY")
-    environment = _env("APP_ENV", "local")
+    # A missing APP_ENV means production: forgetting the variable must not switch on the built-in dev password.
+    # Local work sets APP_ENV=local on purpose (.env.example does).
+    environment = _env("APP_ENV", "production")
     app_password = _env("APP_PASSWORD")
     app_secret = _env("APP_SECRET")
 
@@ -100,6 +105,9 @@ def load_settings() -> Settings:
             missing.append("ANTHROPIC_API_KEY")
         if missing:
             raise RuntimeError(f"Missing required variables in production: {', '.join(missing)}")
+        if len(app_password) < MIN_PASSWORD_LENGTH:
+            raise RuntimeError(f"APP_PASSWORD must be at least {MIN_PASSWORD_LENGTH} characters in production "
+                               "(a passphrase of a few words works). Set a longer one and redeploy.")
 
     database_url = _env("DATABASE_URL", "sqlite:///./local.db")
     # Railway's Postgres plugin hands out postgresql:// URLs; SQLAlchemy needs the driver name.

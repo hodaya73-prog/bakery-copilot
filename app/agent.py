@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from .config import ROOT, settings
 from .costs import Usage, cost_usd
 from .db import Conversation, Message, Run, User, conversation_log, utcnow
+from .security import log_event
 from .tools import registry
 from .tools.sales import branches, data_range
 
@@ -253,11 +254,21 @@ def run_turn(db: Session, *, user: User, conversation: Conversation | None, text
         run.tool_calls, run.tool_names = tool_calls, ",".join(tool_names)[:200]
         run.duration_ms = int((time.monotonic() - started) * 1000)
         db.add(run)
-        # The readable log (table `conversations`): the question, who asked, when it came in (time_message_sent) and when the answer was sent.
-        db.execute(conversation_log.insert().values(
-            conversation_id=conversation.id, user_id=user.id, user_name=user.name, message=user_msg.content,
-            time_message_sent=user_msg.created_at, time_answer_sent=reply_sent_at))
         db.commit()
+        log_exchange()
+
+    def log_exchange() -> None:
+        """The readable log (table `conversations`): the question, who asked, when it came in (time_message_sent)
+        and when the answer was sent. Written after the run is committed and on its own, so a failure here can
+        cost this one log row but never the reply or the run record (SecurityProblems.md SP-19)."""
+        try:
+            db.execute(conversation_log.insert().values(
+                conversation_id=conversation.id, user_id=user.id, user_name=user.name, message=user_msg.content,
+                time_message_sent=user_msg.created_at, time_answer_sent=reply_sent_at))
+            db.commit()
+        except Exception as exc:  # noqa: BLE001 - logging must never break a reply
+            db.rollback()
+            log_event("conversation_log_failed", conversation_id=conversation.id, error=type(exc).__name__)
 
     try:
         # 3. The loop.

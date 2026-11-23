@@ -75,7 +75,7 @@ Six names are secrets or carry one. Their values live in Railway's Variables tab
 
 | Name | What it is | Where the value comes from | Set on |
 |---|---|---|---|
-| `APP_PASSWORD` | the one team password everyone types at login (spec.md §1); compared byte for byte in `app/auth.py` | chosen by Dana | `web`; `digest` by reference |
+| `APP_PASSWORD` | the one team password everyone types at login (spec.md §1); compared byte for byte in `app/auth.py` | chosen by Dana; at least 16 characters, or the app refuses to start in production (a passphrase of a few words does it) | `web`; `digest` by reference |
 | `APP_SECRET` | signs the session cookie; 32+ random characters | generated, section 3.4 | `web`; `digest` by reference |
 | `ANTHROPIC_API_KEY` | the model key | https://platform.claude.com/settings/keys | `web`; `digest` by reference; optionally a second copy as a GitHub Actions secret so CI runs the evals |
 | `CRON_SECRET` | guards `POST /internal/digest`, the by-hand way to run the digest (header `X-Cron-Secret`); without it that endpoint always answers 401 | generated, section 3.4 | `web`; `digest` by reference |
@@ -90,7 +90,7 @@ Optional in the code (`app/config.py` has the same defaults), but set them anywa
 
 | Name | Production value | Meaning |
 |---|---|---|
-| `APP_ENV` | `production` | turns on the startup check for the three secrets and the `secure` flag on the cookie. Without it a missing `APP_PASSWORD` silently becomes `bakery` and a missing `APP_SECRET` becomes a new random value on every start, which signs everyone out at each deploy |
+| `APP_ENV` | `production` | turns on the startup check for the three secrets, the 16-character password rule, the `secure` flag on the cookie and the HSTS header. Left unset it also means production, so the app refuses to start without the secrets; only `APP_ENV=local`, set on purpose (as `.env.example` does), allows the built-in dev password `bakery` and a random `APP_SECRET` per start |
 | `MODEL` | `claude-opus-5-5` | the chat model. Change it only with an eval run before and after (practice.md) |
 | `MODEL_EFFORT` | `medium` | `low`, `medium` or `high` |
 | `HISTORY_LIMIT` | `20` | messages resent per turn |
@@ -282,7 +282,7 @@ It generates `web-production-xxxx.up.railway.app`. For a custom domain, `railway
 curl -s https://<your-domain>/health
 ```
 
-Expect 200 with `"status": "ok"`, `"env": "production"`, `"db": "postgres"` and `"problems": []`. A 503 names the problem (section 7). Then the password check:
+Expect 200 with `{"status":"ok"}`. That is all anyone gets: the detail (`"env": "production"`, `"db": "postgres"`, `"problems": []`) comes back only when the request carries the cron secret in an `X-Cron-Secret` header, and a 503 explains itself the same way. Every problem is also written to the deploy log as a `health_degraded` line (section 7). Then the password check:
 
 ```bash
 curl -s -X POST https://<your-domain>/api/login -H 'content-type: application/json' -d '{"name":"Check","password":"wrong"}'
@@ -374,8 +374,8 @@ Expect `29115`. `railway ssh --service web -- python -m app.digest` prints the d
 | Build log: `Repository "…" not found or is not accessible` | Railway's GitHub app has no access to the private repo | section 4 step 2; meanwhile `railway up --service web --ci` from a clean `main` |
 | A push to `main` starts no build, although the app has access and the service shows the repo as its source | the service has no push trigger: it was created before the app had access, and the trigger is not added retroactively | `railway service source connect --repo MaceTenth/bakery-copilot --branch main --service web`, and the same for `digest` |
 | Deploy log: `RuntimeError: Missing required variables in production: APP_PASSWORD, …` | `APP_ENV=production` is set on that service but the named variables are not | set them (on `digest`, as `${{web.NAME}}`), then redeploy |
-| `/health` is 503 with `"problems": ["ANTHROPIC_API_KEY missing"]` | the key is not set on `web`, or was pasted in the dashboard and never deployed | Variables → check → **Deploy**; or `railway redeploy --service web --yes` |
-| `/health` is 503 with `"problems": ["db: …"]` | `DATABASE_URL` is not the reference, or the database service is not named `Postgres` | set `DATABASE_URL=${{Postgres.DATABASE_URL}}` |
+| `/health` is 503 and the log has `health_degraded problems='ANTHROPIC_API_KEY missing'` | the key is not set on `web`, or was pasted in the dashboard and never deployed | Variables → check → **Deploy**; or `railway redeploy --service web --yes` |
+| `/health` is 503 and the log has `health_degraded problems='db: …'` | `DATABASE_URL` is not the reference, or the database service is not named `Postgres` | set `DATABASE_URL=${{Postgres.DATABASE_URL}}` |
 | Variables pasted in the dashboard, but the app behaves as if they were missing | the edit is staged, not deployed | press **Deploy** on the banner; the CLI listing shows only applied values |
 | `railway config plan`: "The Railway TypeScript SDK is not installed" | `.railway/node_modules` is missing on this machine | `npm install --prefix .railway` |
 | `railway config plan` keeps reporting `web deploy.restartPolicyType (null → "ON_FAILURE")` | `ON_FAILURE` is Railway's default; declaring it in the file produces a permanent false drift | leave it out; the file sets only `restartPolicyMaxRetries` |
